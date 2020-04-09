@@ -6,5 +6,21 @@
     {
         "ParameterKey": "VPC_CIDR",
         "ParameterValue": "10.0.0.0/16"
-    }
+    },
+    {
+		"ParameterKey": "PrivateSubnet1_CIDR",
+		"ParameterValue": "10.0.1.0/24"
+	},
+	{
+		"ParameterKey": "PrivateSubnet2_CIDR",
+		"ParameterValue": "10.0.3.0/24"
+	},
+    {
+		"ParameterKey": "PublicSubnet1_CIDR",
+		"ParameterValue": "10.0.0.0/24"
+	},
+	{
+		"ParameterKey": "PublicSubnet2_CIDR",
+		"ParameterValue": "10.0.4.0/24"
+	}
 ]

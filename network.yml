@@ -15,6 +15,26 @@ Parameters:
         Description: Stipulates the IP address range for this VPC.
         Type: String
         Default: 10.0.0.0/16
+    
+    PrivateSubnet1_CIDR:
+        Description: IP address range for PrivateSubnet1 in AZ1.   
+        Type: String
+        Default: 10.0.1.0/24
+
+    PrivateSubnet2_CIDR:
+        Description: IP address range for PrivateSubnet2 in AZ2. 
+        Type: String
+        Default: 10.0.3.0/24
+
+    PublicSubnet1_CIDR:
+        Description: IP address range for PublicSubnet1 in AZ1. 
+        Type: String
+        Default: 10.0.0.0/24
+
+    PublicSubnet2_CIDR:
+        Description: IP address range for PublicSubnet2 in AZ2. 
+        Type: String
+        Default: 10.0.4.0/24
 
 Resources: 
     

@@ -3,3 +3,19 @@ Description: >
     This template deploys a high availability infrastructure as 
     code for a project app named Udagram. LastUpdate: 09/04/2020
 
+Parameters:
+    
+    EnvironmentName: 
+        Description: A name that indicates the cloud environment 
+        inside which the infrastructure exists. It is prefixed to 
+        the name of each resource on the network.
+        Type: String
+
+    VPC_CIDR:
+        Description: Stipulates the IP address range for this VPC.
+        Type: String
+        Default: 10.0.0.0/16
+
+Resources: 
+    
+    

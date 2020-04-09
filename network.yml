@@ -37,5 +37,25 @@ Parameters:
         Default: 10.0.4.0/24
 
 Resources: 
-    
-    
+        
+    UdagramVPC: 
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: !Ref VPC_CIDR
+            EnableDnsHostnames: true
+            Tags: 
+                - Key: Name 
+                    Value: !Ref EnvironmentName
+            
+    InternetGateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name
+                    Value: !Ref EnvironmentName
+            
+    InternetGatewayAttachment:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            InternetGatewayId: !Ref InternetGateway
+            VpcId: !Ref UdagramVPC

@@ -193,9 +193,8 @@ Resources:
             DestinationCidrBlock: 0.0.0.0/0
             NatGatewayId: !Ref NatGateway2
 
-    PrivateSubnet2_RouteTableAssociation:
+    PrivateSubnet2RouteTableAssociation:
         Type: AWS::EC2::SubnetRouteTableAssociation
         Properties:
             RouteTableId: !Ref PrivateRouteTable2
             SubnetId: !Ref PrivateSubnet2 
-            

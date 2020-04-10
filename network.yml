@@ -7,31 +7,31 @@ Parameters:
     
     EnvironmentName: 
         Description: A name that indicates the cloud environment 
-        inside which the infrastructure exists. It is prefixed to 
-        the name of each resource on the network.
+            inside which the infrastructure exists. It is prefixed 
+            to the name of each resource on the network.
         Type: String
 
-    VPC_CIDR:
+    VpcCIDR:
         Description: Stipulates the IP address range for this VPC.
         Type: String
         Default: 10.0.0.0/16
     
-    PrivateSubnet1_CIDR:
+    PrivateSubnet1CIDR:
         Description: IP address range for PrivateSubnet1 in AZ1.   
         Type: String
         Default: 10.0.1.0/24
 
-    PrivateSubnet2_CIDR:
+    PrivateSubnet2CIDR:
         Description: IP address range for PrivateSubnet2 in AZ2. 
         Type: String
         Default: 10.0.3.0/24
 
-    PublicSubnet1_CIDR:
+    PublicSubnet1CIDR:
         Description: IP address range for PublicSubnet1 in AZ1. 
         Type: String
         Default: 10.0.0.0/24
 
-    PublicSubnet2_CIDR:
+    PublicSubnet2CIDR:
         Description: IP address range for PublicSubnet2 in AZ2. 
         Type: String
         Default: 10.0.4.0/24
@@ -41,18 +41,18 @@ Resources:
     UdagramVPC: 
         Type: AWS::EC2::VPC
         Properties:
-            CidrBlock: !Ref VPC_CIDR
+            CidrBlock: !Ref VpcCIDR
             EnableDnsHostnames: true
             Tags: 
                 - Key: Name 
-                    Value: !Ref EnvironmentName
+                  Value: !Ref EnvironmentName
             
     InternetGateway:
         Type: AWS::EC2::InternetGateway
         Properties:
             Tags:
                 - Key: Name
-                    Value: !Ref EnvironmentName
+                  Value: !Ref EnvironmentName
             
     InternetGatewayAttachment:
         Type: AWS::EC2::VPCGatewayAttachment

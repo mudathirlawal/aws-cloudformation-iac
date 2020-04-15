@@ -3,30 +3,51 @@ Description: >
     This template deploys the servers and other related infrastructure
     that exist on the Udagram cloud architecture. LastUpdate: 13/04/2020
 
- Parameters:
+Parameters:
 
-     EnvironmentName: 
+    EnvironmentName: 
          Description: The name prefixed to resource names to indicate the 
              cloud environment to which they belong.
          Type: String      
 
 Resources:
-    Resources:
-  
-  LBSecGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow http access to load balancer
-      VpcId:
-        Fn::ImportValue:
-          !Sub "${EnvironmentName}-VPC-ID"
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 10.0.0.0/16
+    
+    LBSecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: Allow http access into load balancer from internet via IGW;
+              and allow traffic to exit ONLY to the VPC from the same port 80.
+          VpcId:
+            Fn::ImportValue:
+              !Sub "${EnvironmentName}-VPC-ID"
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+          SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 10.0.0.0/16
+    Apache2WebServerAndBastionSecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: Allow http to hosts and SSH from specified local IP only.
+          VpcId:
+            Fn::ImportValue:
+              !Sub "${EnvironmentName}-VPC-ID"
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 192.210.29.70/32    # Allow connection via SSH only from this IP.
+          SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: 0
+            ToPort: 65535
+            CidrIp: 0.0.0.0/0

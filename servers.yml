@@ -130,4 +130,22 @@ Resources:
               Values: [/]
             ListenerArn: !Ref 'Listener'
             Priority: 1
-      
+      WebAppTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+          HealthCheckIntervalSeconds: 10
+          HealthCheckPath: /
+          HealthCheckProtocol: HTTP
+          HealthCheckTimeoutSeconds: 8
+          HealthyThresholdCount: 2
+          Port: 80
+          Protocol: HTTP
+          UnhealthyThresholdCount: 5
+          VpcId: 
+            Fn::ImportValue:
+              Fn::Sub: "${EnvironmentName}-VPC-ID"
+          Tags: # Add deregistration delay 
+              - Key: deregistration_delay.timeout_seconds
+                Value: 3600
+              - Key: slow_start.duration_seconds
+                Value: 900

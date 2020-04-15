@@ -80,7 +80,7 @@ Resources:
             apt-get install -y docker-ce
             usermod -aG docker ubuntu
         ImageId: ami-005bdb005fb00e791
-        KeyName: yticadu
+        KeyName: apex-zone 
         SecurityGroups:
         - Ref: WebServerSecGroup
         InstanceType: t3.medium
@@ -88,4 +88,16 @@ Resources:
         - DeviceName: "/dev/sdk"
           Ebs:
             VolumeSize: '10'
-            
+    WebAppAutoScalingGroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties:
+        VPCZoneIdentifier:
+        - Fn::ImportValue: 
+            !Sub "${EnvironmentName}-PRV-SBNs"
+        LaunchConfigurationName:
+          Ref: WebAppLaunchConfig
+        MinSize: '4'
+        MaxSize: '6'
+        TargetGroupARNs:
+        - Ref: WebAppTargetGroup        
+        

@@ -60,12 +60,14 @@ Resources:
             # Install AWS CLI 
             # Install Apache2 HTTP Server
             # Start Appache2 HTTP Server
+            # Create index page that greets visitors in /var/www/html
             # Copy Udagram app code from s3 bucket & unzip it in /var/www/html
             apt-get update -y
             apt-get install unzip awscli -y
             apt-get install apache2 -y
             systemctl start apache2.service
             cd /var/www/html
+            echo "It works! Udagram, Udacity" > index.html
             aws s3 cp s3://udacity-demo-1/udacity.zip .
             unzip -o udacity.zip
 

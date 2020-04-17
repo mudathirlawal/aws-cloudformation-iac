@@ -1,0 +1,14 @@
+Description: >
+    Author: Mudathir Lawal / School of Cloud Computing, Udacity; 
+    This template deploys the actual servers and database instances
+    that exist on the Udagram cloud architecture. LastUpdate: 17/04/2020
+
+Parameters:
+
+    EnvironmentName: 
+         Description: The name prefixed to resource names to indicate the 
+             cloud environment to which they belong.
+         Type: String      
+
+Resources:
+    

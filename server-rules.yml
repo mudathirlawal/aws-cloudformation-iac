@@ -151,11 +151,5 @@ Resources:
               Value: 3600
             - Key: slow_start.duration_seconds
               Value: 900
-    # Instace profile for IAM Role name associated with Udagram
-    # auto scaling EC2 Servers
-    ProfileWithRolesForUdagramApp:
-      Type: AWS::IAM::InstanceProfile
-      Properties: 
-        Roles:
-          - UdacityS3ReadOnlyEC2
+   
           

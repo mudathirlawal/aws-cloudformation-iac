@@ -11,4 +11,11 @@ Parameters:
          Type: String      
 
 Resources:
-    
+    # Instace profile for IAM Role name associated with Udagram
+    # auto scaling EC2 Servers
+    UdagramInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties: 
+        Roles:
+          - UdacityS3ReadOnlyEC2
+          

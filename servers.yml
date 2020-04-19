@@ -1,0 +1,212 @@
+Description: >
+    Author: Mudathir Lawal / School of Cloud Computing, Udacity; 
+    This template deploys the servers and other related infrastructure
+    that exist on the Udagram cloud architecture. LastUpdate: 19/04/2020
+
+Parameters:
+
+    EnvironmentNameParam: 
+        Description: The name prefixed to resource names to indicate the 
+            cloud environment to which they belong.
+        Type: String  
+    AMIParam:
+        Description: The Amazon machine image to be deployed.
+        Type: String
+    KeyNameParam: 
+        Description: Udagram web server key pair.    
+        Type: String
+    InstanceTypeParam:
+        Description: The type of server instance to deploy
+        Type: String
+    DeviceNameParam:
+        Description: Name of volume to attach
+        Type: String
+    VolumeSizeParam:
+        Description: Size of the volume to be attached
+        Type: Integer
+    DedicatedIPParam:
+      Description: A decicated static pub IP from which we can SSH into our jump box.
+      Type: String       
+    
+Resources:
+    
+    # Instace profile for IAM Role name associated with 
+    # Udagram/Apache auto scaling EC2 Servers
+    UdagramInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties: 
+        Roles:
+          - UdacityS3ReadOnlyEC2
+    LBSecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: Allow http access into load balancer from internet via IGW;
+              and allow traffic to exit ONLY to the VPC from the same port 80.
+          VpcId:
+            Fn::ImportValue:
+              !Sub "${EnvironmentName}-VPC-ID"
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+          SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 10.0.0.0/16
+    UdagramWebServerSecGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: Allow http to hosts via NAT, and SSH from jump box only. 
+          VpcId:
+            Fn::ImportValue:
+              !Sub "${EnvironmentName}-VPC-ID"
+          SecurityGroupIngress: 
+          - IpProtocol: tcp   
+            FromPort: 80 
+            ToPort: 80
+            CidrIp: 10.0.0.0/16  # Allow HTTP access only from NAT gateway.
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 10.0.0.0/16  # Allow connection via SSH only from bastion host.
+          - IpProtocol: icmp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 10.0.0.0/16  # Allow ping from bastion host on port 22 also.
+          SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: 0
+            ToPort: 65535
+            CidrIp: 0.0.0.0/0
+    BastionHostSecGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Deny HTTP to host and allow SSH from specified IP only.
+        VpcId:
+          Fn::ImportValue:
+            !Sub "${EnvironmentName}-VPC-ID"
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Sub ${DedicatedIP} # Allow connection via SSH only from this IP.
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/16       # Allow SSH to resources within VPC.
+        - IpProtocol: icmp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/16       # Allow ping to resources within VPC.
+    UdagramWebServerLaunchConfig:
+      Type: AWS::AutoScaling::LaunchConfiguration
+      Properties:
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # Install AWS CLI 
+            # Install Apache2 HTTP Server
+            # Start Appache2 HTTP Server
+            # Create index page that greets visitors in /var/www/html
+            # Copy Udagram app code from s3 bucket & unzip it in /var/www/html
+            apt-get update -y
+            apt-get install unzip awscli -y
+            apt-get install apache2 -y
+            systemctl start apache2.service
+            cd /var/www/html
+            echo "It works! Udagram, Udacity" > index.html
+            aws s3 cp s3://udacity-demo-1/udacity.zip .
+            unzip -o udacity.zip
+
+            # Install Docker and run the following updates just in case of future needs
+            apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+            add-apt-repository \
+            "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+            $(lsb_release -cs) \
+            stable"
+            apt-get update
+            apt-get install -y docker-ce
+            usermod -aG docker ubuntu
+        ImageId: !Sub "${AMI}" 
+        KeyName: !Sub "${KeyName}" 
+        SecurityGroups:
+        - Ref: UdagramWebServerSecGroup
+        InstanceType: !Sub "${InstanceType}" 
+        IamInstanceProfile: !Ref UdagramInstanceProfile
+        BlockDeviceMappings:
+        - DeviceName: !Sub "${DeviceName}"   
+          Ebs:
+            VolumeSize: !Sub "${VolumeSize}"
+    WebAppAutoScalingGroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties:
+        VPCZoneIdentifier:
+        - Fn::ImportValue: 
+            !Sub "${EnvironmentName}-PRV-SBNs"
+        LaunchConfigurationName:
+          Ref: UdagramWebServerLaunchConfig
+        MinSize: '4'
+        MaxSize: '5'
+        TargetGroupARNs:
+        - Ref: WebAppTargetGroup        
+    WebAppLB:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+          Name: "udagram.app"
+          Subnets:
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN1"
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN2"
+          SecurityGroups:
+          - Ref: LBSecGroup
+    Listener:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: WebAppTargetGroup
+        LoadBalancerArn:
+          Ref: WebAppLB
+        Port: '80'
+        Protocol: HTTP
+    ALBListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+          Actions:
+          - Type: forward
+            TargetGroupArn: !Ref 'WebAppTargetGroup'
+          Conditions:
+          - Field: path-pattern
+            Values: [/]
+          ListenerArn: !Ref 'Listener'
+          Priority: 1
+    WebAppTargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        HealthCheckIntervalSeconds: 10
+        HealthCheckPath: /
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeoutSeconds: 8
+        HealthyThresholdCount: 2
+        Port: 80
+        Protocol: HTTP
+        UnhealthyThresholdCount: 5
+        VpcId: 
+          Fn::ImportValue:
+            Fn::Sub: "${EnvironmentName}-VPC-ID"
+        Tags: # Add deregistration delay 
+            - Key: deregistration_delay.timeout_seconds
+              Value: 3600
+            - Key: slow_start.duration_seconds
+              Value: 900
+              
+Outputs:
+  LoadBalancerURL:
+    Description: Stores the URL of the application LB
+    Value: !Join [ "", [ "http://", !GetAtt WebAppLB.DNSName ] ]
+    Export:
+      Name: !Sub ${EnvironmentNameParam}-LB-URL

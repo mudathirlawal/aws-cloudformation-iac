@@ -142,7 +142,7 @@ Resources:
         LaunchConfigurationName:
           Ref: UdagramWebServerLaunchConfig
         MinSize: '4'
-        MaxSize: '6'
+        MaxSize: '5'
         TargetGroupARNs:
         - Ref: WebAppTargetGroup        
     WebAppLB:

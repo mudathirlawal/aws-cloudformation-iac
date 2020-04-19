@@ -1,15 +1,33 @@
 Description: >
     Author: Mudathir Lawal / School of Cloud Computing, Udacity; 
     This template deploys the servers and other related infrastructure
-    that exist on the Udagram cloud architecture. LastUpdate: 13/04/2020
+    that exist on the Udagram cloud architecture. LastUpdate: 19/04/2020
 
 Parameters:
 
-    EnvironmentName: 
-         Description: The name prefixed to resource names to indicate the 
-             cloud environment to which they belong.
-         Type: String      
-
+    EnvironmentNameParam: 
+        Description: The name prefixed to resource names to indicate the 
+            cloud environment to which they belong.
+        Type: String  
+    AMIParam:
+        Description: The Amazon machine image to be deployed.
+        Type: String
+    KeyNameParam: 
+        Description: Udagram web server key pair.    
+        Type: String
+    InstanceTypeParam:
+        Description: The type of server instance to deploy
+        Type: String
+    DeviceNameParam:
+        Description: Name of volume to attach
+        Type: String
+    VolumeSizeParam:
+        Description: Size of the volume to be attached
+        Type: Integer
+    DedicatedIPParam:
+      Description: A decicated static pub IP from which we can SSH into our jump box.
+      Type: String       
+    
 Resources:
     
     LBSecGroup:
@@ -30,28 +48,53 @@ Resources:
             FromPort: 80
             ToPort: 80
             CidrIp: 10.0.0.0/16
-    Apache2WebServerAndBastionSecGroup:
+    UdagramWebServerSecGroup:
         Type: AWS::EC2::SecurityGroup
         Properties:
-          GroupDescription: Allow http to hosts and SSH from specified local IP only.
+          GroupDescription: Allow http to hosts via NAT, and SSH from jump box only. 
           VpcId:
             Fn::ImportValue:
               !Sub "${EnvironmentName}-VPC-ID"
-          SecurityGroupIngress:
-          - IpProtocol: tcp
-            FromPort: 80
+          SecurityGroupIngress: 
+          - IpProtocol: tcp   
+            FromPort: 80 
             ToPort: 80
-            CidrIp: 0.0.0.0/0
+            CidrIp: 10.0.0.0/16  # Allow HTTP access only from NAT gateway.
           - IpProtocol: tcp
             FromPort: 22
             ToPort: 22
-            CidrIp: 192.210.29.70/32   # Allow connection via SSH only from this IP.
+            CidrIp: 10.0.0.0/16  # Allow connection via SSH only from bastion host.
+          - IpProtocol: icmp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 10.0.0.0/16  # Allow ping from bastion host on port 22 also.
           SecurityGroupEgress:
           - IpProtocol: tcp
             FromPort: 0
             ToPort: 65535
             CidrIp: 0.0.0.0/0
-    WebAppLaunchConfig:
+    BastionHostSecGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Deny HTTP to host and allow SSH from specified IP only.
+        VpcId:
+          Fn::ImportValue:
+            !Sub "${EnvironmentName}-VPC-ID"
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Sub ${DedicatedIP} # Allow connection via SSH only from this IP.
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/16       # Allow SSH to resources within VPC.
+        - IpProtocol: icmp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/16       # Allow ping to resources within VPC.
+    UdagramWebServerLaunchConfig:
       Type: AWS::AutoScaling::LaunchConfiguration
       Properties:
         UserData:
@@ -81,15 +124,15 @@ Resources:
             apt-get update
             apt-get install -y docker-ce
             usermod -aG docker ubuntu
-        ImageId: ami-005bdb005fb00e791
-        KeyName: apex-zone 
+        ImageId: !Sub "${AMI}" 
+        KeyName: !Sub "${KeyName}" 
         SecurityGroups:
-        - Ref: Apache2WebServerAndBastionSecGroup
-        InstanceType: t3.medium
+        - Ref: UdagramWebServerSecGroup
+        InstanceType: !Sub "${InstanceType}" 
         BlockDeviceMappings:
-        - DeviceName: "/dev/sdk"
+        - DeviceName: !Sub "${DeviceName}"   
           Ebs:
-            VolumeSize: '10'
+            VolumeSize: !Sub "${VolumeSize}"
     WebAppAutoScalingGroup:
       Type: AWS::AutoScaling::AutoScalingGroup
       Properties:
@@ -97,7 +140,7 @@ Resources:
         - Fn::ImportValue: 
             !Sub "${EnvironmentName}-PRV-SBNs"
         LaunchConfigurationName:
-          Ref: WebAppLaunchConfig
+          Ref: UdagramWebServerLaunchConfig
         MinSize: '4'
         MaxSize: '6'
         TargetGroupARNs:
@@ -105,6 +148,7 @@ Resources:
     WebAppLB:
         Type: AWS::ElasticLoadBalancingV2::LoadBalancer
         Properties:
+          Name: "udagram.app"
           Subnets:
           - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN1"
           - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN2"
@@ -151,5 +195,11 @@ Resources:
               Value: 3600
             - Key: slow_start.duration_seconds
               Value: 900
-   
-          
+     
+Outputs:
+  LoadBalancerURL:
+    Description: Stores the URL of the application LB
+    Value: !Join [ "", [ "http://", !GetAtt DNSName ] ]
+    Export:
+      Name: !Sub ${EnvironmentNameParam}-LB-URL
+

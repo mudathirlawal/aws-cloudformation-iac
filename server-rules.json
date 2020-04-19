@@ -1,6 +1,30 @@
 [
     {
-        "ParameterKey": "EnvironmentName",
+        "ParameterKey": "EnvironmentNameParam",
         "ParameterValue": "Udagram"
+    },
+    {
+        "ParameterKey": "AMIParam",
+        "ParameterValue": "ami-005bdb005fb00e791"
+    },
+    {
+        "ParameterKey": "KeyNameParam",
+        "ParameterValue": "udagram-kp"
+    },
+    {
+        "ParameterKey": "InstanceTypeParam",
+        "ParameterValue": "t3.medium"
+    },
+    {
+        "ParameterKey": "DeviceNameParam",
+        "ParameterValue": "/dev/sdk"
+    },
+    {
+        "ParameterKey": "VolumeSizeParam",
+        "ParameterValue": "10"
+    },
+    {
+        "ParameterKey": "DedicatedIPParam",
+        "ParameterValue": "192.210.29.70/32"
     }
 ]

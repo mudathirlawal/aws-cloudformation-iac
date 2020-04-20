@@ -166,9 +166,10 @@ Resources:
         - Fn::ImportValue: 
             !Sub "${EnvironmentName}-PRV-SBNs"
         LaunchConfigurationName:
-          Ref: UdagramWebServerLaunchConfig
+          Ref: UdagramWebServerLaunchConfig  
         MinSize: '4'
         MaxSize: '5'
+        HealthCheckGracePeriod: 3600
         TargetGroupARNs:
         - Ref: WebAppTargetGroup        
     WebAppLB:

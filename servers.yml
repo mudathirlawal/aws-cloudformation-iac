@@ -30,40 +30,153 @@ Parameters:
     
 Resources:
     
-    # Instace profile for IAM Role name associated with 
-    # Udagram/Apache auto scaling EC2 Servers, role has  
-    # been created in console 
-    UdagramInstanceProfile:
-      Type: AWS::IAM::InstanceProfile
+    LBSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http access into load balancer from internet via IGW;
+          and allow traffic to exit ONLY to the VPC from the same port 80.
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPC-ID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 10.0.0.0/16
+    WebAppLB:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Name: "udagram.app"
+        Subnets:
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN1"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN2"
+        SecurityGroups:
+        - Ref: LBSecGroup
+    Listener:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: WebAppTargetGroup
+        LoadBalancerArn:
+          Ref: WebAppLB
+        Port: '80'
+        Protocol: HTTP
+    ALBListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+          Actions:
+          - Type: forward
+            TargetGroupArn: !Ref 'WebAppTargetGroup'
+          Conditions:
+          - Field: path-pattern
+            Values: [/]
+          ListenerArn: !Ref 'Listener'
+          Priority: 1      
+    BastionSSHAndICMP:
+      Type: AWS::IAM::Role
       Properties: 
-        Roles:
-          - UdacityS3ReadOnlyEC2
+        AssumeRolePolicyDocument: Json
+        Description: This role grants SSH and ICMP privileges to user 
+        ManagedPolicyArns: 
+          - "arn:aws:iam::aws:policy/EC2InstanceConnect"
+        MaxSessionDuration: 3600
+        Path: "/"
+        Tags: 
+          - team = Engineering:DevOps     
     # Instace profile for IAM Role name associated with 
-    # bastion host non auto scaling EC2 Server, role has  
-    # been created in console 
+    # bastion host auto scaling EC2 Servers
     BastionSSHInstanceProfile:
       Type: AWS::IAM::InstanceProfile
       Properties: 
         Roles:
-          - DevOpsSSH      
-    LBSecGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-          GroupDescription: Allow http access into load balancer from internet via IGW;
-              and allow traffic to exit ONLY to the VPC from the same port 80.
-          VpcId:
-            Fn::ImportValue:
-              !Sub "${EnvironmentName}-VPC-ID"
-          SecurityGroupIngress:
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: 0.0.0.0/0
-          SecurityGroupEgress:
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: 10.0.0.0/16
+          - BastionSSHAndICMP     
+    BastionLaunchConfig:
+      Type: AWS::AutoScaling::LaunchConfiguration
+      Properties:
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # Install AWS CLI 
+            apt-get update -y
+            apt-get install unzip awscli -y     
+        ImageId: !Sub "${AMI}" 
+        KeyName: !Sub "${KeyName}" 
+        SecurityGroups:
+        - Ref: BastionHostSecGroup
+        InstanceType: !Sub "${InstanceType}" 
+        IamInstanceProfile: !Ref BastionSSHInstanceProfile
+        BlockDeviceMappings:
+        - DeviceName: !Sub "${DeviceName}"   
+    BastionHostSecGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Deny HTTP to host and allow SSH from specified IP only.
+        VpcId:
+          Fn::ImportValue:
+            !Sub "${EnvironmentName}-VPC-ID"
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Sub ${DedicatedIP} # Allow connection via SSH only from this IP.
+        SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/16       # Allow SSH to resources within VPC.
+        - IpProtocol: icmp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.0.0.0/16       # Allow ping to resources within VPC.
+    BastionAutoScalingGrp:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties:
+        VPCZoneIdentifier:
+        - Fn::ImportValue: 
+            !Sub "${EnvironmentName}-PUB-SBNs"
+        LaunchConfigurationName:
+          Ref: BastionLaunchConfig  
+        MinSize: '1'
+        MaxSize: '1'
+        HealthCheckGracePeriod: 3600    # Delay health check till servers spin up 
+        TargetGroupARNs:
+        - Ref: BastionTargetGroup     
+    BastionTargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        HealthCheckIntervalSeconds: 10
+        HealthCheckPath: /
+        HealthCheckProtocol: SSH
+        HealthCheckTimeoutSeconds: 8
+        HealthyThresholdCount: 2
+        Port: 80
+        Protocol: SSH
+        UnhealthyThresholdCount: 5
+        VpcId: 
+          Fn::ImportValue:
+            Fn::Sub: "${EnvironmentName}-VPC-ID"     
+    S3ReadOnlyFromEC2:
+      Type: AWS::IAM::Role
+      Properties: 
+        AssumeRolePolicyDocument: Json
+        Description: This role grants read only access to the S3 buck 
+        ManagedPolicyArns: 
+          - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+        Path: "/"  
+    # Instace profile for IAM Role name associated with 
+    # Udagram/Apache auto scaling EC2 Servers
+    UdagramInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties: 
+        Roles:
+          - UdacityS3ReadOnlyEC2              
     UdagramWebServerSecGroup:
         Type: AWS::EC2::SecurityGroup
         Properties:
@@ -89,44 +202,6 @@ Resources:
             FromPort: 0
             ToPort: 65535
             CidrIp: 0.0.0.0/0
-    BastionHostSecGroup:
-      Type: AWS::EC2::SecurityGroup
-      Properties:
-        GroupDescription: Deny HTTP to host and allow SSH from specified IP only.
-        VpcId:
-          Fn::ImportValue:
-            !Sub "${EnvironmentName}-VPC-ID"
-        SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: !Sub ${DedicatedIP} # Allow connection via SSH only from this IP.
-        SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 10.0.0.0/16       # Allow SSH to resources within VPC.
-        - IpProtocol: icmp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 10.0.0.0/16       # Allow ping to resources within VPC.
-    BastionHostInstance:
-      Type: AWS::EC2::Instance
-      DependsOn: BastionHostSecGroup
-      Properties: 
-        AvailabilityZone: !Select [ 0, !GetAZs '' ] 
-        SubnetId: !Sub "${PublicSubnet1}"
-        IamInstanceProfile: !Ref BastionSSHInstanceProfile
-        ImageId: ami-005bdb005fb00e791
-        InstanceType: t2.small               
-        SecurityGroupIds: 
-          - Ref: BastionHostSecGroup
-        Monitoring: true
-        KeyName: 
-              Ref: "KeyName2" 
-        Tags: 
-          - Key: "Name"
-            Value: "bastion-instance"      
     UdagramWebServerLaunchConfig:
       Type: AWS::AutoScaling::LaunchConfiguration
       Properties:
@@ -180,37 +255,6 @@ Resources:
         HealthCheckGracePeriod: 3600    # Delay health check till servers spin up 
         TargetGroupARNs:
         - Ref: WebAppTargetGroup        
-    WebAppLB:
-        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-        Properties:
-          Name: "udagram.app"
-          Subnets:
-          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN1"
-          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN2"
-          SecurityGroups:
-          - Ref: LBSecGroup
-    Listener:
-      Type: AWS::ElasticLoadBalancingV2::Listener
-      Properties:
-        DefaultActions:
-        - Type: forward
-          TargetGroupArn:
-            Ref: WebAppTargetGroup
-        LoadBalancerArn:
-          Ref: WebAppLB
-        Port: '80'
-        Protocol: HTTP
-    ALBListenerRule:
-        Type: AWS::ElasticLoadBalancingV2::ListenerRule
-        Properties:
-          Actions:
-          - Type: forward
-            TargetGroupArn: !Ref 'WebAppTargetGroup'
-          Conditions:
-          - Field: path-pattern
-            Values: [/]
-          ListenerArn: !Ref 'Listener'
-          Priority: 1
     WebAppTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:

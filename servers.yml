@@ -31,13 +31,21 @@ Parameters:
 Resources:
     
     # Instace profile for IAM Role name associated with 
-    # Udagram/Apache auto scaling EC2 Servers, created in
-    # console 
+    # Udagram/Apache auto scaling EC2 Servers, role has  
+    # been created in console 
     UdagramInstanceProfile:
       Type: AWS::IAM::InstanceProfile
       Properties: 
         Roles:
           - UdacityS3ReadOnlyEC2
+    # Instace profile for IAM Role name associated with 
+    # bastion host non auto scaling EC2 Server, role has  
+    # been created in console 
+    BastionSSHInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties: 
+        Roles:
+          - DevOpsSSH      
     LBSecGroup:
         Type: AWS::EC2::SecurityGroup
         Properties:
@@ -108,7 +116,7 @@ Resources:
       Properties: 
         AvailabilityZone: !Select [ 0, !GetAZs '' ] 
         SubnetId: !Sub "${PublicSubnet1}"
-        #IamInstanceProfile: !Ref TShootInstanceProfile
+        IamInstanceProfile: !Ref BastionSSHInstanceProfile
         ImageId: ami-005bdb005fb00e791
         InstanceType: t2.small               
         SecurityGroupIds: 
@@ -169,7 +177,7 @@ Resources:
           Ref: UdagramWebServerLaunchConfig  
         MinSize: '4'
         MaxSize: '5'
-        HealthCheckGracePeriod: 3600
+        HealthCheckGracePeriod: 3600    # Delay health check till servers spin up 
         TargetGroupARNs:
         - Ref: WebAppTargetGroup        
     WebAppLB:
@@ -229,3 +237,9 @@ Outputs:
     Value: !Join [ "", [ "http://", !GetAtt WebAppLB.DNSName ] ]
     Export:
       Name: !Sub ${EnvironmentNameParam}-LB-URL
+  BastionIP:
+    Description: Stores bastion host's static IP address
+    Value: !GetAtt BastionHostInstance.PublicIp 
+    Export:
+      Name: !Sub ${EnvironmentNameParam}-Bastion-IP
+

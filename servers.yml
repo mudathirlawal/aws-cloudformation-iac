@@ -1,7 +1,7 @@
 Description: >
     Author: Mudathir Lawal / School of Cloud Computing, Udacity; 
     This template deploys the servers and other related infrastructure
-    that exist on the Udagram cloud architecture. LastUpdate: 19/04/2020
+    that exist on the Udagram cloud architecture. LastUpdate: 20/04/2020
 
 Parameters:
 
@@ -31,7 +31,8 @@ Parameters:
 Resources:
     
     # Instace profile for IAM Role name associated with 
-    # Udagram/Apache auto scaling EC2 Servers
+    # Udagram/Apache auto scaling EC2 Servers, created in
+    # console 
     UdagramInstanceProfile:
       Type: AWS::IAM::InstanceProfile
       Properties: 
@@ -101,6 +102,23 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 10.0.0.0/16       # Allow ping to resources within VPC.
+    BastionHostInstance:
+      Type: AWS::EC2::Instance
+      DependsOn: BastionHostSecGroup
+      Properties: 
+        AvailabilityZone: !Select [ 0, !GetAZs '' ] 
+        SubnetId: !Sub "${PublicSubnet1}"
+        #IamInstanceProfile: !Ref TShootInstanceProfile
+        ImageId: ami-005bdb005fb00e791
+        InstanceType: t2.small               
+        SecurityGroupIds: 
+          - Ref: BastionHostSecGroup
+        Monitoring: true
+        KeyName: 
+              Ref: "KeyName2" 
+        Tags: 
+          - Key: "Name"
+            Value: "bastion-instance"      
     UdagramWebServerLaunchConfig:
       Type: AWS::AutoScaling::LaunchConfiguration
       Properties:

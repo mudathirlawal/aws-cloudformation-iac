@@ -1,30 +1,54 @@
 [
     {
-        "ParameterKey": "EnvironmentNameParam",
+        "ParameterKey": "EnvironmentName",
         "ParameterValue": "Udagram"
     },
     {
-        "ParameterKey": "AMIParam",
-        "ParameterValue": "ami-005bdb005fb00e791"
+        "ParameterKey": "WsAMI",
+        "ParameterValue": "ami-005bdb005fb00e791"  
     },
     {
-        "ParameterKey": "KeyNameParam",
-        "ParameterValue": "udagram-kp"
+        "ParameterKey": "BhAMI",
+        "ParameterValue": "ami-005bdb005fb00e791" 
     },
     {
-        "ParameterKey": "InstanceTypeParam",
+        "ParameterKey": "KeyName1",
+        "ParameterValue": "udagram-ws"
+    },
+    {
+        "ParameterKey": "KeyName2",
+        "ParameterValue": "udagram-bh"
+    },
+    {
+        "ParameterKey": "InstanceType1",
         "ParameterValue": "t3.medium"
     },
     {
-        "ParameterKey": "DeviceNameParam",
+        "ParameterKey": "InstanceType2",
+        "ParameterValue": "t3.medium"
+    },
+    {
+        "ParameterKey": "DeviceName",
         "ParameterValue": "/dev/sdk"
     },
     {
-        "ParameterKey": "VolumeSizeParam",
+        "ParameterKey": "VolumeSize",
         "ParameterValue": "10"
     },
     {
-        "ParameterKey": "DedicatedIPParam",
+        "ParameterKey": "DedicatedIP",
         "ParameterValue": "192.210.29.70/32"
-    }
+    },
+    {
+        "ParameterKey": "PublicSubnets",
+        "ParameterValue": "EnvironmentName-PUB-SBNs"
+    },
+    {
+        "ParameterKey": "MinNosOfInstances",
+        "ParameterValue": "4"
+    },
+    {
+        "ParameterKey": "MaxNosOfInstances",
+        "ParameterValue": "6"
+    }       
 ]

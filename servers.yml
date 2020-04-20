@@ -5,31 +5,46 @@ Description: >
 
 Parameters:
 
-    EnvironmentNameParam: 
+    EnvironmentName: 
         Description: The name prefixed to resource names to indicate the 
             cloud environment to which they belong.
         Type: String  
-    AMIParam:
+    WsAMI:
         Description: The Amazon machine image to be deployed.
         Type: String
-    KeyNameParam: 
+    BhAMI:
+        Description: The Amazon machine image to be deployed.
+        Type: String        
+    KeyName1: 
         Description: Udagram web server key pair.    
         Type: String
-    InstanceTypeParam:
-        Description: The type of server instance to deploy
+    KeyName2: 
+        Description: Udagram bastion host key pair.    
+        Type: String    
+    InstanceType1:
+        Description: Machine type to be deployed as Udagram/Apache server.
         Type: String
-    DeviceNameParam:
-        Description: Name of volume to attach
-        Type: String
-    VolumeSizeParam:
+    InstanceType2: # Seperate InstanceType param because any 
+        # of them may change later.
+        Description: Machine type to be deployed as jump box.
+        Type: String        
+    DeviceName:
+        Description: Mount point/ number of drives
+        Type: String      
+    VolumeSize:
         Description: Size of the volume to be attached
         Type: Integer
-    DedicatedIPParam:
+    DedicatedIP:
       Description: A decicated static pub IP from which we can SSH into our jump box.
-      Type: String       
-    
+      Type: String   
+    MinNosOfInstances:
+      Description: The cumulative minimum number of instances in both AZs.
+      Type: String         
+    MaxNosOfInstances:
+      Description: The cumulative maximum number of instances in both AZs.
+      Type: String 
+
 Resources:
-    
     LBSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -106,11 +121,11 @@ Resources:
             # Install AWS CLI 
             apt-get update -y
             apt-get install unzip awscli -y     
-        ImageId: !Sub "${AMI}" 
-        KeyName: !Sub "${KeyName}" 
+        ImageId: !Sub "${BhAMI}" 
+        KeyName: !Sub "${KeyName2}" 
         SecurityGroups:
         - Ref: BastionHostSecGroup
-        InstanceType: !Sub "${InstanceType}" 
+        InstanceType: !Sub "${InstanceType2}" 
         IamInstanceProfile: !Ref BastionSSHInstanceProfile
         BlockDeviceMappings:
         - DeviceName: !Sub "${DeviceName}"   
@@ -156,7 +171,7 @@ Resources:
         HealthCheckProtocol: SSH
         HealthCheckTimeoutSeconds: 8
         HealthyThresholdCount: 2
-        Port: 80
+        Port: 22
         Protocol: SSH
         UnhealthyThresholdCount: 5
         VpcId: 
@@ -232,11 +247,11 @@ Resources:
             apt-get update
             apt-get install -y docker-ce
             usermod -aG docker ubuntu
-        ImageId: !Sub "${AMI}" 
-        KeyName: !Sub "${KeyName}" 
+        ImageId: !Sub "${WsAMI}" 
+        KeyName: !Sub "${KeyName1}" 
         SecurityGroups:
         - Ref: UdagramWebServerSecGroup
-        InstanceType: !Sub "${InstanceType}" 
+        InstanceType: !Sub "${InstanceType1}" 
         IamInstanceProfile: !Ref UdagramInstanceProfile
         BlockDeviceMappings:
         - DeviceName: !Sub "${DeviceName}"   
@@ -250,8 +265,8 @@ Resources:
             !Sub "${EnvironmentName}-PRV-SBNs"
         LaunchConfigurationName:
           Ref: UdagramWebServerLaunchConfig  
-        MinSize: '4'
-        MaxSize: '5'
+        MinSize: !Sub MinNosOfInstances
+        MaxSize: !Sub MaxNosOfInstances
         HealthCheckGracePeriod: 3600    # Delay health check till servers spin up 
         TargetGroupARNs:
         - Ref: WebAppTargetGroup        
@@ -280,10 +295,10 @@ Outputs:
     Description: Stores the URL of the application LB
     Value: !Join [ "", [ "http://", !GetAtt WebAppLB.DNSName ] ]
     Export:
-      Name: !Sub ${EnvironmentNameParam}-LB-URL
+      Name: !Sub ${EnvironmentName}-LB-URL
   BastionIP:
-    Description: Stores bastion host's static IP address
+    Description: Stores bastion host's elastic IP address
     Value: !GetAtt BastionHostInstance.PublicIp 
     Export:
-      Name: !Sub ${EnvironmentNameParam}-Bastion-IP
+      Name: !Sub ${EnvironmentName}-Bastion-IP
 

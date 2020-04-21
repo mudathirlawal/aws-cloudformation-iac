@@ -27,13 +27,7 @@ Parameters:
     InstanceType2: # Seperate InstanceType param because any 
         # of them may change later.
         Description: Machine type to be deployed as jump box.
-        Type: String        
-    DeviceName:
-        Description: Mount point/ number of drives
-        Type: String      
-    VolumeSize:
-        Description: Size of the volume to be attached
-        Type: String
+        Type: String             
     DedicatedIP:
       Description: A decicated static pub IP from which we can SSH into our jump box.
       Type: String   
@@ -70,7 +64,7 @@ Resources:
   WebAppLB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: "udagram.app"
+      Name: "udagram"
       Subnets:
       - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN1"
       - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN2"
@@ -97,25 +91,7 @@ Resources:
         - Field: path-pattern
           Values: [/]
         ListenerArn: !Ref 'Listener'
-        Priority: 1      
-  BastionSSHAndICMP:
-    Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument: Json
-      Description: This role grants SSH and ICMP privileges to user 
-      ManagedPolicyArns: 
-        - "arn:aws:iam::aws:policy/EC2InstanceConnect"
-      MaxSessionDuration: 3600
-      Path: "/"
-      Tags: 
-        - team = Engineering:DevOps     
-  # Instace profile for IAM Role name associated with 
-  # bastion host auto scaling EC2 Servers
-  BastionSSHInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties: 
-      Roles:
-        - BastionSSHAndICMP     
+        Priority: 1            
   BastionLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -130,9 +106,10 @@ Resources:
       SecurityGroups:
       - Ref: BastionHostSecGroup
       InstanceType: !Sub "${InstanceType2}" 
-      IamInstanceProfile: !Ref BastionSSHInstanceProfile
       BlockDeviceMappings:
-      - DeviceName: !Sub "${DeviceName}"   
+      - DeviceName: "/dev/sdk"   
+        Ebs:
+          VolumeSize: "10"
   BastionHostSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -162,40 +139,40 @@ Resources:
           !Sub "${EnvironmentName}-PUB-SBNs"
       LaunchConfigurationName:
         Ref: BastionLaunchConfig  
-      MinSize: '2'
-      MaxSize: '2'
-      HealthCheckGracePeriod: 3600    # Delay health check till servers spin up 
-      TargetGroupARNs:
-      - Ref: BastionTargetGroup     
-  BastionTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /
-      HealthCheckProtocol: SSH
-      HealthCheckTimeoutSeconds: 8
-      HealthyThresholdCount: 2
-      Port: 22
-      Protocol: SSH
-      UnhealthyThresholdCount: 5
-      VpcId: 
-        Fn::ImportValue:
-          Fn::Sub: "${EnvironmentName}-VPC-ID"     
-  S3ReadOnlyFromEC2:
+      MinSize: '1'
+      MaxSize: '1' 
+  UdacityS3FullAccessFromEC2Role:
     Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument: Json
-      Description: This role grants read only access to the S3 buck 
-      ManagedPolicyArns: 
-        - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
-      Path: "/"  
+    Properties:
+      Description: This role grants full access to the S3 buckets
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole    
+  UdacityS3FullAccessFromEC2Policy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: UdacityS3FullAccessFromEC2Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: 's3:*'
+            Resource: '*'
+      Roles:
+        - !Ref UdacityS3FullAccessFromEC2Role
   # Instace profile for IAM Role name associated with 
-  # Udagram/Apache auto scaling EC2 Servers
+  # Udagram/Apache auto scaling EC2 Servers      
   UdagramInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties: 
       Roles:
-        - UdacityS3ReadOnlyEC2              
+        - Ref: UdacityS3FullAccessFromEC2Role 
   UdagramWebServerSecGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -240,17 +217,6 @@ Resources:
           echo "It works! Udagram, Udacity" > index.html
           aws s3 cp s3://udacity-demo-1/udacity.zip .
           unzip -o udacity.zip
-
-          # Install Docker and run the following updates just in case of future needs
-          apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-          add-apt-repository \
-          "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-          $(lsb_release -cs) \
-          stable"
-          apt-get update
-          apt-get install -y docker-ce
-          usermod -aG docker ubuntu
       ImageId: !Sub "${WsAMI}" 
       KeyName: !Sub "${KeyName1}" 
       SecurityGroups:
@@ -258,9 +224,9 @@ Resources:
       InstanceType: !Sub "${InstanceType1}" 
       IamInstanceProfile: !Ref UdagramInstanceProfile
       BlockDeviceMappings:
-      - DeviceName: !Sub "${DeviceName}"   
+      - DeviceName: "/dev/sdk"   
         Ebs:
-          VolumeSize: !Sub "${VolumeSize}"
+          VolumeSize: "10"
   WebAppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -269,8 +235,8 @@ Resources:
           !Sub "${EnvironmentName}-PRV-SBNs"
       LaunchConfigurationName:
         Ref: UdagramWebServerLaunchConfig  
-      MinSize: !Sub MinNosOfInstances
-      MaxSize: !Sub MaxNosOfInstances
+      MinSize: !Sub ${MinNosOfInstances}
+      MaxSize: !Sub ${MaxNosOfInstances}
       HealthCheckGracePeriod: 3600    # Delay health check till servers spin up 
       TargetGroupARNs:
       - Ref: WebAppTargetGroup        
@@ -300,8 +266,4 @@ Outputs:
     Value: !Join [ "", [ "http://", !GetAtt WebAppLB.DNSName ] ]
     Export:
       Name: !Sub ${EnvironmentName}-LB-URL
-  # BastionIPs:
-  #   Description: Stores bastion host's elastic IP address
-  #   Value: !Join [ ",", [ !Select [ 0, !GetAtt BastionTargetGroup.PublicIps ], !Select [ 1, !GetAtt BastionTargetGroup.PublicIps ] ] ]
-  #   Export:
-  #     Name: !Sub ${EnvironmentName}-Bastion-IPs
+

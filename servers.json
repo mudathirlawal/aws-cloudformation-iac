@@ -28,16 +28,8 @@
         "ParameterValue": "t3.medium"
     },
     {
-        "ParameterKey": "DeviceName",
-        "ParameterValue": "/dev/sdk"
-    },
-    {
-        "ParameterKey": "VolumeSize",
-        "ParameterValue": "10"
-    },
-    {
         "ParameterKey": "DedicatedIP",
-        "ParameterValue": "192.210.29.70/32"
+        "ParameterValue": "197.210.65.210/32"
     },
     {
         "ParameterKey": "PublicSubnets",
@@ -52,3 +44,4 @@
         "ParameterValue": "6"
     }       
 ]
+

@@ -140,8 +140,8 @@ Resources:
       LaunchConfigurationName:
         Ref: BastionLaunchConfig  
       MinSize: '1'
-      MaxSize: '1' 
-  UdacityS3FullAccessFromEC2Role:
+      MaxSize: '2' 
+  UdagramS3FullAccessRole:
     Type: AWS::IAM::Role
     Properties:
       Description: This role grants full access to the S3 buckets
@@ -154,10 +154,10 @@ Resources:
             - ec2.amazonaws.com
           Action:
           - sts:AssumeRole    
-  UdacityS3FullAccessFromEC2Policy:
+  UdagramS3FullAccessPolicy:
     Type: 'AWS::IAM::Policy'
     Properties:
-      PolicyName: UdacityS3FullAccessFromEC2Policy
+      PolicyName: UdagramS3FullAccessPolicy
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -165,14 +165,14 @@ Resources:
             Action: 's3:*'
             Resource: '*'
       Roles:
-        - !Ref UdacityS3FullAccessFromEC2Role
+        - !Ref UdagramS3FullAccessRole
   # Instace profile for IAM Role name associated with 
   # Udagram/Apache auto scaling EC2 Servers      
   UdagramInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties: 
       Roles:
-        - Ref: UdacityS3FullAccessFromEC2Role 
+        - Ref: UdagramS3FullAccessRole 
   UdagramWebServerSecGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -214,9 +214,9 @@ Resources:
           apt-get install apache2 -y
           systemctl start apache2.service
           cd /var/www/html
-          echo "It works! Udagram, Udacity" > index.html
-          aws s3 cp s3://udacity-demo-1/udacity.zip .
-          unzip -o udacity.zip
+          aws s3 cp s3://udagrm/udagram-app.zip .
+          unzip -o udagram-app.zip
+          echo index.html
       ImageId: !Sub "${WsAMI}" 
       KeyName: !Sub "${KeyName1}" 
       SecurityGroups:
@@ -259,7 +259,7 @@ Resources:
             Value: 3600
           - Key: slow_start.duration_seconds
             Value: 900
-              
+
 Outputs:
   LoadBalancerURL:
     Description: Stores the URL of the application LB

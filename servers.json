@@ -28,8 +28,8 @@
         "ParameterValue": "t3.medium"
     },
     {
-        "ParameterKey": "DedicatedIP",
-        "ParameterValue": "197.210.65.210/32"
+        "ParameterKey": "DedicatedIP", 
+        "ParameterValue": "102.89.2.173/32"
     },
     {
         "ParameterKey": "PublicSubnets",

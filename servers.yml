@@ -207,7 +207,6 @@ Resources:
           # Install AWS CLI 
           # Install Apache2 HTTP Server
           # Start Appache2 HTTP Server
-          # Create index page that greets visitors in /var/www/html
           # Copy Udagram app code from s3 bucket & unzip it in /var/www/html
           apt-get update -y
           apt-get install unzip awscli -y
@@ -216,7 +215,6 @@ Resources:
           cd /var/www/html
           aws s3 cp s3://udagrm/udagram-app.zip .
           unzip -o udagram-app.zip
-          echo index.html
       ImageId: !Sub "${WsAMI}" 
       KeyName: !Sub "${KeyName1}" 
       SecurityGroups:

@@ -13,11 +13,11 @@
     },
     {
         "ParameterKey": "KeyName1",
-        "ParameterValue": "udagram-ws"
+        "ParameterValue": "apache-key"
     },
     {
         "ParameterKey": "KeyName2",
-        "ParameterValue": "udagram-bh"
+        "ParameterValue": "jumpbox-key"
     },
     {
         "ParameterKey": "InstanceType1",
@@ -29,7 +29,7 @@
     },
     {
         "ParameterKey": "DedicatedIP", 
-        "ParameterValue": "0.0.0.0/0"
+        "ParameterValue": "102.89.2.118/32"
     },
     {
         "ParameterKey": "PublicSubnets",

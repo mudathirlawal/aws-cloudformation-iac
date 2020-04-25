@@ -60,7 +60,7 @@ Resources:
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: 10.0.0.0/16
+        CidrIp: 0.0.0.0/0
   WebAppLB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -92,6 +92,38 @@ Resources:
           Values: [/]
         ListenerArn: !Ref 'Listener'
         Priority: 1            
+  BastionEC2FullAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: This role grants full access to the S3 buckets
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole    
+  BastionEC2FullAccessPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: BastionEC2FullAccessPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: 'ec2:*'
+            Resource: '*'
+      Roles:
+        - !Ref BastionEC2FullAccessRole
+  # Instace profile for IAM Role name associated with 
+  # Udagram/Apache auto scaling EC2 Servers      
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles:
+        - Ref: BastionEC2FullAccessRole         
   BastionLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -106,6 +138,7 @@ Resources:
       SecurityGroups:
       - Ref: BastionHostSecGroup
       InstanceType: !Sub "${InstanceType2}" 
+      IamInstanceProfile: !Ref BastionInstanceProfile     
       BlockDeviceMappings:
       - DeviceName: "/dev/sdk"   
         Ebs:
@@ -119,14 +152,14 @@ Resources:
           !Sub "${EnvironmentName}-VPC-ID"
       SecurityGroupIngress:
       - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
+        FromPort: 2222
+        ToPort: 2222
         CidrIp: !Sub ${DedicatedIP} # Allow connection via SSH only from this IP.
       SecurityGroupEgress:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 10.0.0.0/16       # Allow SSH to resources within VPC.
+        CidrIp: 0.0.0.0/0       # Allow SSH to resources within VPC.
       - IpProtocol: icmp
         FromPort: 22
         ToPort: 22
@@ -139,8 +172,8 @@ Resources:
           !Sub "${EnvironmentName}-PUB-SBNs"
       LaunchConfigurationName:
         Ref: BastionLaunchConfig  
-      MinSize: '1'
-      MaxSize: '2' 
+      MinSize: '2'
+      MaxSize: '3' 
   UdagramS3FullAccessRole:
     Type: AWS::IAM::Role
     Properties:
@@ -184,11 +217,11 @@ Resources:
         - IpProtocol: tcp   
           FromPort: 80 
           ToPort: 80
-          CidrIp: 10.0.0.0/16  # Allow HTTP access only from NAT gateway.
+          CidrIp: 0.0.0.0/0  # Allow HTTP access only from NAT gateway.
         - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 10.0.0.0/16  # Allow connection via SSH only from bastion host.
+          FromPort: 2222
+          ToPort: 2222
+          CidrIp: 10.0.0.0/16  # Allow connection via SSH from VPC to allow bastion host.
         - IpProtocol: icmp
           FromPort: 22
           ToPort: 22
@@ -203,20 +236,23 @@ Resources:
     Properties:
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash
+          #!/bin/bash -xe
           # Install AWS CLI 
           # Install Apache2 HTTP Server
           # Start Appache2 HTTP Server
-          # Copy Udagram app code from s3 bucket & unzip it in /var/www/html
+          # Copy Udagram app code from s3 bucket & unzip it in /var/www/html  
+          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
           apt-get update -y
           apt-get install unzip awscli -y
           apt-get install apache2 -y
           systemctl start apache2.service
+          systemctl enable apache2
           cd /var/www/html
-          aws s3 cp s3://udagrm/udagram-app.zip .
-          unzip -o udagram-app.zip
+          aws s3 cp s3://udacity-demo-1/udacity.zip .
+          unzip -o udacity.zip
+          sudo service apache2 restart
       ImageId: !Sub "${WsAMI}" 
-      KeyName: !Sub "${KeyName1}" 
+      KeyName: !Sub "${KeyName1}"
       SecurityGroups:
       - Ref: UdagramWebServerSecGroup
       InstanceType: !Sub "${InstanceType1}" 
@@ -264,4 +300,8 @@ Outputs:
     Value: !Join [ "", [ "http://", !GetAtt WebAppLB.DNSName ] ]
     Export:
       Name: !Sub ${EnvironmentName}-LB-URL
+
+
+
+
 

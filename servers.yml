@@ -1,0 +1,270 @@
+
+Description: >
+    Author: Mudathir Lawal / School of Cloud Computing, Udacity; 
+    This template deploys the servers and other related infrastructure
+    that exist on the Udagram cloud architecture. LastUpdate: 27/04/2020
+
+Parameters:
+
+    EnvironmentName: 
+        Description: The name prefixed to resource names to indicate the 
+            cloud environment to which they belong.
+        Type: String  
+    WsAMI:
+        Description: The Amazon machine image to be deployed.
+        Type: String
+    BhAMI:
+        Description: The Amazon machine image to be deployed.
+        Type: String        
+    KeyName1: 
+        Description: Udagram web server key pair.    
+        Type: String
+    KeyName2: 
+        Description: Udagram bastion host key pair.    
+        Type: String    
+    InstanceType1:
+        Description: Machine type to be deployed as Udagram/Apache server.
+        Type: String
+    InstanceType2: # Seperate InstanceType param because any 
+        # of them may change later.
+        Description: Machine type to be deployed as jump box.
+        Type: String             
+    DedicatedIP:
+      Description: A decicated static pub IP from which we can SSH into our jump box.
+      Type: String   
+    PublicSubnets:
+      Description: The ARNs of the public subnets in both AZ1 and AZ2.
+      Type: String       
+    MinNosOfInstances:
+      Description: The cumulative minimum number of instances in both AZs.
+      Type: String         
+    MaxNosOfInstances:
+      Description: The cumulative maximum number of instances in both AZs.
+      Type: String 
+
+Resources:
+
+  LBSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to our load balancer
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPC-ID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0     # Allow everybody to use our awesome app!
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 10.0.0.0/16   # Send requests to servers via NAT
+
+  ApacheServersSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to our hosts and SSH from local only
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPC-ID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 10.0.0.0/16   # Allow traffic into servers ONLY from NAT gateways.
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 10.0.0.0/16   # Allow SSH only from hosts within VPC.
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0     # Allow servers to download software patches.
+
+  BastionSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Bastion host security groups
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPC-ID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 2222         # I am using port 2222 because I discovered my ISP 
+        ToPort: 2222           # has disabled connection to remote hosts vi SSH.
+        CidrIp: !Sub ${DedicatedIP} # Allow connection via SSH only from this IP.
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 10.0.0.0/16       # Allow SSH to resources within VPC.
+      - IpProtocol: icmp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 10.0.0.0/16       # Allow ping to resources within VPC.    
+
+  BastionInstance1:
+    Type: AWS::EC2::Instance
+    DependsOn: BastionSecGroup
+    Properties:
+      ImageId: ami-0d1cd67c26f5fca19
+      InstanceType: t3.medium
+      KeyName: bastion-key
+      SubnetId:
+        Fn::ImportValue:
+          Fn::Sub: "${EnvironmentName}-PUB-SBN1"
+      SecurityGroupIds:
+      - Ref: BastionSecGroup
+    # I originally put these bastion instances in an auto scaling group
+    # but they kept failling the healthchecks so I splitted them. Also,
+    # I could not connect to the bastion instances via SSH.
+  BastionInstance2:
+    Type: AWS::EC2::Instance
+    DependsOn: BastionSecGroup
+    Properties:
+      ImageId: ami-0d1cd67c26f5fca19
+      InstanceType: t3.medium
+      KeyName: bastion-key
+      SubnetId:
+        Fn::ImportValue:
+          Fn::Sub: "${EnvironmentName}-PUB-SBN2"
+      SecurityGroupIds:
+      - Ref: BastionSecGroup
+
+  ApacheServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash         
+          # Install AWS CLI 
+          # Install Apache2 HTTP Server
+          # Start Appache2 HTTP Server
+          # Remove default Apache index.html file
+          # Copy Udagram app code from s3 bucket 
+          # Unzip Udagram app into /var/www/html 
+          # Restart Apache HTML server 
+          apt-get update -y
+          apt-get install unzip awscli -y
+          apt-get install apache2 -y
+          systemctl start apache2.service
+          sudo rm /var/www/html/index.html
+          sudo aws s3 cp s3://udacity-demo-1/udacity.zip /var/www/html
+          sudo unzip /var/www/html/udacity.zip -d /var/www/html
+          systemctl restart apache2.service       
+      ImageId: ami-0d1cd67c26f5fca19
+      IamInstanceProfile: !Ref ApacheServerInstProfile
+      SecurityGroups:
+      - Ref: ApacheServersSecGroup
+      InstanceType: !Sub ${InstanceType1}
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sdk"
+        Ebs:
+          VolumeSize: "10"
+          DeleteOnTermination: true
+  ApacheServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+      - Fn::ImportValue:
+          !Sub "${EnvironmentName}-PRV-SBNs"
+      LaunchConfigurationName:
+        Ref: ApacheServerLaunchConfig
+      MinSize: !Ref MinNosOfInstances
+      MaxSize: !Ref MaxNosOfInstances
+      DesiredCapacity: "4"
+      TargetGroupARNs:
+      - Ref: WebAppTargetGroup
+
+  WebAppLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:
+      - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN1"
+      - Fn::ImportValue: !Sub "${EnvironmentName}-PUB-SBN2"
+      SecurityGroups:
+      - Ref: LBSecGroup
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: WebAppTargetGroup
+      LoadBalancerArn:
+        Ref: WebAppLB
+      Port: '80'
+      Protocol: HTTP
+
+  ALBListenerRule:
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      Properties:
+        Actions:
+        - Type: forward
+          TargetGroupArn: !Ref 'WebAppTargetGroup'
+        Conditions:
+        - Field: path-pattern
+          Values: [/]
+        ListenerArn: !Ref 'Listener'
+        Priority: 1
+
+  WebAppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 8
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: "${EnvironmentName}-VPC-ID"
+
+  ApacheServerS3Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+
+  ApacheS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3Policy
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:*
+          Resource: "*"
+      Roles:
+      - Ref: ApacheServerS3Role
+
+  ApacheServerInstProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: ApacheServerS3Role
+
+Outputs:
+
+  LoadBalancerDNSName:
+    Description: DNS Name of the web application
+    Value: !Join [ "", [ "http://", !GetAtt WebAppLB.DNSName ] ]
+    Export:
+      Name: !Sub "${EnvironmentName}-LB-DNS-NAME"

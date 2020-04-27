@@ -2,7 +2,7 @@
 Description: >
     Author: Mudathir Lawal / School of Cloud Computing, Udacity; 
     This template deploys the servers and other related infrastructure
-    that exist on the Udagram cloud architecture. LastUpdate: 26/04/2020
+    that exist on the Udagram cloud architecture. LastUpdate: 27/04/2020
 
 Parameters:
 
@@ -55,12 +55,12 @@ Resources:
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: 0.0.0.0/0
+        CidrIp: 0.0.0.0/0     # Allow everybody to use our awesome app!
       SecurityGroupEgress:
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: 0.0.0.0/0
+        CidrIp: 10.0.0.0/16   # Send requests to servers via NAT
 
   ApacheServersSecGroup:
     Type: AWS::EC2::SecurityGroup
@@ -73,16 +73,16 @@ Resources:
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: 0.0.0.0/0
+        CidrIp: 10.0.0.0/16   # Allow traffic into servers ONLY from NAT gateways.
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 0.0.0.0/0
+        CidrIp: 10.0.0.0/16   # Allow SSH only from hosts within VPC.
       SecurityGroupEgress:
       - IpProtocol: tcp
         FromPort: 0
         ToPort: 65535
-        CidrIp: 0.0.0.0/0
+        CidrIp: 0.0.0.0/0     # Allow servers to download software patches.
 
   BastionSecGroup:
     Type: AWS::EC2::SecurityGroup
@@ -93,29 +93,40 @@ Resources:
           !Sub "${EnvironmentName}-VPC-ID"
       SecurityGroupIngress:
       - IpProtocol: tcp
+        FromPort: 2222         # I am using port 2222 because I discovered my ISP 
+        ToPort: 2222           # has disabled connection to remote hosts vi SSH.
+        CidrIp: !Sub ${DedicatedIP} # Allow connection via SSH only from this IP.
+      SecurityGroupEgress:
+      - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 0.0.0.0/0
+        CidrIp: 10.0.0.0/16       # Allow SSH to resources within VPC.
+      - IpProtocol: icmp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 10.0.0.0/16       # Allow ping to resources within VPC.    
 
   BastionInstance1:
     Type: AWS::EC2::Instance
     DependsOn: BastionSecGroup
     Properties:
-      ImageId: ami-06f2f779464715dc5
-      InstanceType: t3.small
+      ImageId: ami-0d1cd67c26f5fca19
+      InstanceType: t3.medium
       KeyName: bastion-key
       SubnetId:
         Fn::ImportValue:
           Fn::Sub: "${EnvironmentName}-PUB-SBN1"
       SecurityGroupIds:
       - Ref: BastionSecGroup
-
+    # I originally put these bastion instances in an auto scaling group
+    # but they kept failling the healthchecks so I splitted them. Also,
+    # I could not connect to the bastion instances via SSH.
   BastionInstance2:
     Type: AWS::EC2::Instance
     DependsOn: BastionSecGroup
     Properties:
-      ImageId: ami-06f2f779464715dc5
-      InstanceType: t3.small
+      ImageId: ami-0d1cd67c26f5fca19
+      InstanceType: t3.medium
       KeyName: bastion-key
       SubnetId:
         Fn::ImportValue:
@@ -128,7 +139,7 @@ Resources:
     Properties:
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash 
+          #!/bin/bash         
           # Install AWS CLI 
           # Install Apache2 HTTP Server
           # Start Appache2 HTTP Server
@@ -141,9 +152,9 @@ Resources:
           apt-get install apache2 -y
           systemctl start apache2.service
           sudo rm /var/www/html/index.html
-          sudo aws s3 cp s3://udacity-demo-1/udacity.zip /var/www
-          sudo unzip -o /var/www/udacity.zip -d /var/www/html
-          systemctl restart apache2.service
+          sudo aws s3 cp s3://udacity-demo-1/udacity.zip /var/www/html
+          sudo unzip /var/www/html/udacity.zip -d /var/www/html
+          systemctl restart apache2.service       
       ImageId: ami-0d1cd67c26f5fca19
       IamInstanceProfile: !Ref ApacheServerInstProfile
       SecurityGroups:
@@ -257,7 +268,3 @@ Outputs:
     Value: !Join [ "", [ "http://", !GetAtt WebAppLB.DNSName ] ]
     Export:
       Name: !Sub "${EnvironmentName}-LB-DNS-NAME"
-
-
-
-      

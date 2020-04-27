@@ -1,0 +1,47 @@
+[
+    {
+        "ParameterKey": "EnvironmentName",
+        "ParameterValue": "Udagram"
+    },
+    {
+        "ParameterKey": "WsAMI",
+        "ParameterValue": "ami-005bdb005fb00e791"  
+    },
+    {
+        "ParameterKey": "BhAMI",
+        "ParameterValue": "ami-005bdb005fb00e791" 
+    },
+    {
+        "ParameterKey": "KeyName1",
+        "ParameterValue": "apache-key"
+    },
+    {
+        "ParameterKey": "KeyName2",
+        "ParameterValue": "jumpbox-key"
+    },
+    {
+        "ParameterKey": "InstanceType1",
+        "ParameterValue": "t3.medium"
+    },
+    {
+        "ParameterKey": "InstanceType2",
+        "ParameterValue": "t3.medium"
+    },
+    {
+        "ParameterKey": "DedicatedIP", 
+        "ParameterValue": "0.0.0.0/0"
+    },
+    {
+        "ParameterKey": "PublicSubnets",
+        "ParameterValue": "EnvironmentName-PUB-SBNs"
+    },
+    {
+        "ParameterKey": "MinNosOfInstances",
+        "ParameterValue": "4"
+    },
+    {
+        "ParameterKey": "MaxNosOfInstances",
+        "ParameterValue": "6"
+    }       
+]
+
